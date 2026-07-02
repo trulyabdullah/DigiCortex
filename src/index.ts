@@ -3,8 +3,10 @@ import z from "zod";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 import { UserModel } from "./dbSchema.js";
 
+const saltRounds = 12;
 const app = express();
 
 const signupSchema = z.strictObject({
@@ -22,18 +24,25 @@ app.use(express.json());
 app.post("/api/v1/signup", async (req, res, next) => {
 	try {
 		const parsedBody = signupSchema.safeParse(req.body);
-
 		if (!parsedBody.success) {
 			console.log(z.prettifyError(parsedBody.error));
 			return res.status(422).json({
 				message: "Validation failed. Try again with correct schema.",
 			});
 		}
-
-		const createdUser = await UserModel.create(parsedBody.data);
-		console.log("User created in database.");
+		const parsedName = parsedBody.data.name;
+		const parsedEmail = parsedBody.data.email;
+		const hashedPassword: string = await bcrypt.hash(
+			parsedBody.data.password,
+			saltRounds,
+		);
+		const createdUser = await UserModel.create({
+			name: parsedName,
+			email: parsedEmail,
+			password: hashedPassword,
+		});
 		return res.status(200).json({
-			message: "Signup succesful.",
+			message: "Signup successful.",
 			name: createdUser.name,
 			email: createdUser.email,
 		});
@@ -51,31 +60,29 @@ app.post("/api/v1/signup", async (req, res, next) => {
 app.post("/api/v1/signin", (req, res, next) => {
 	try {
 		const parsedBody = signinSchema.safeParse(req.body);
-		if (parsedBody.success) {
-			const jwtPrivateKey: string | undefined =
-				process.env["JWT_PRIVATE_KEY"];
-			if (jwtPrivateKey) {
-				const token: string = jwt.sign(
-					{
-						email: parsedBody.data.email,
-					},
-					jwtPrivateKey,
-				);
-				return res
-					.status(200)
-					.json({ message: "Signin succesful.", token: token });
-			} else {
-				console.log("Jwt private key not found.");
-				return res.status(500).json({
-					message: "Internal server error. Try again later.",
-				});
-			}
-		} else if (!parsedBody.success) {
+		if (!parsedBody.success) {
 			console.log(z.prettifyError(parsedBody.error));
 			return res.status(422).json({
 				message: "Validation failed. Try again with correct schema.",
 			});
 		}
+		const jwtPrivateKey: string | undefined =
+			process.env["JWT_PRIVATE_KEY"];
+		if (!jwtPrivateKey) {
+			console.log("JWT private key not found.");
+			return res.status(500).json({
+				message: "Internal server error. Try again later.",
+			});
+		}
+		const token: string = jwt.sign(
+			{
+				email: parsedBody.data.email,
+			},
+			jwtPrivateKey,
+		);
+		return res
+			.status(200)
+			.json({ message: "Signin succesful.", token: token });
 	} catch (err) {
 		return next(err);
 	}
