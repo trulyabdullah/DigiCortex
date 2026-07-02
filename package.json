@@ -4,7 +4,8 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "npx tsc && node ./dist/index.js"
     },
     "repository": {
         "type": "git",
@@ -29,6 +30,7 @@
         "@types/express": "^5.0.6",
         "@types/jsonwebtoken": "^9.0.10",
         "@types/node": "^26.1.0",
+        "tsx": "^4.22.5",
         "typescript": "^6.0.3"
     }
 }
