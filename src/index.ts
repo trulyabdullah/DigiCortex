@@ -1,12 +1,18 @@
-import express, { type ErrorRequestHandler } from "express";
+import express, {
+	type ErrorRequestHandler,
+	type NextFunction,
+	type Request,
+	type Response,
+} from "express";
 import z from "zod";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-import { UserModel } from "./dbSchema.js";
+import { UserModel, ContentModel, TagModel } from "./dbSchema.js";
 import logger from "./logger.js";
 import { pinoHttp } from "pino-http";
+import { decodeJwtMiddleware } from "./middleware/jwtDecode.js";
 
 const saltRounds = 12;
 const app = express();
@@ -19,6 +25,11 @@ const signupSchema = z.strictObject({
 const signinSchema = z.strictObject({
 	email: z.email(),
 	password: z.string().min(8),
+});
+const contentSchema = z.strictObject({
+	title: z.string().min(3),
+	content: z.string().min(5),
+	tags: z.array(z.string()).optional(),
 });
 
 app.use(
@@ -95,7 +106,9 @@ app.post("/api/v1/signin", async (req, res, next) => {
 				message: "Validation failed. Try again with correct schema.",
 			});
 		}
-		const user = await UserModel.findOne({ email: parsedBody.data.email });
+		const user = await UserModel.findOne({
+			email: parsedBody.data.email,
+		}).select("+password");
 		if (!user) {
 			req.log.warn(
 				{ email: parsedBody.data.email },
@@ -140,6 +153,52 @@ app.post("/api/v1/signin", async (req, res, next) => {
 		return next(err);
 	}
 });
+
+app.post(
+	"/api/v1/content",
+	decodeJwtMiddleware,
+	async (req: Request, res: Response, next: NextFunction) => {
+		const userId = res.locals["userId"];
+		const parsedBody = contentSchema.safeParse(req.body);
+		if (!parsedBody.success) {
+			req.log.warn("Invalid content schema");
+			return res.status(422).json({
+				message: "Malformed request body",
+			});
+		}
+		try {
+			const { title, content, tags = [] } = parsedBody.data;
+			const tagDocs = await Promise.all(
+				tags.map((tagName) => {
+					return TagModel.findOneAndUpdate(
+						{ user: userId, name: tagName.toLowerCase().trim() },
+						{
+							$setOnInsert: {
+								user: userId,
+								name: tagName.toLowerCase().trim(),
+							},
+						},
+						{
+							upsert: true,
+							new: true,
+						},
+					);
+				}),
+			);
+			const tagIds = tagDocs.map((tag) => tag._id);
+			await ContentModel.create({
+				title,
+				content,
+				tags: tagIds,
+				user: userId,
+			});
+			req.log.info("New content created.");
+			return res.status(201).json({ message: "Content created." });
+		} catch (err) {
+			return next(err);
+		}
+	},
+);
 
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 	req.log.error(err, "Error detected");
