@@ -2,12 +2,17 @@ import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import z from "zod";
 
+// valid header -> authorization: Bearer JWT_TOKEN (not doing strict object so that other headers are allowed.)
 const headerSchema = z.object({
 	authorization: z.string().regex(/^Bearer\s.+$/),
 });
+
+// to verify that decodedJWT has userId. Not using strict object because JWT has other fields too like iat...
 const jwtSchema = z.object({
 	userId: z.string(),
 });
+
+// intercepts requests and attaches userId to res after successful verification.
 export const decodeJwtMiddleware = (
 	req: Request,
 	res: Response,
