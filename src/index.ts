@@ -142,7 +142,7 @@ app.post("/api/v1/signin", async (req, res, next) => {
 });
 
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-	req.log.error(err, "Unhandled error detected");
+	req.log.error(err, "Error detected");
 	return res
 		.status(500)
 		.json({ message: "Internal server error. Try again later." });
