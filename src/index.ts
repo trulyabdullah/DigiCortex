@@ -200,6 +200,8 @@ app.post(
 	},
 );
 
+app.get("");
+
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 	req.log.error(err, "Error detected");
 	return res
