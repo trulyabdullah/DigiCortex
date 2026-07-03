@@ -150,20 +150,22 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
 app.use(errorHandler);
 
-const PORT = process.env["PORT"] || 3000;
-const mongoUrl = process.env["MONGO_URL"];
-if (!mongoUrl) {
-	logger.error("Mongo URL not found.");
-	throw new Error("Mongo URL not found.");
-}
-mongoose
-	.connect(mongoUrl)
-	.then(() => {
+const startServer: () => Promise<void> = async () => {
+	const PORT = process.env["PORT"] || 3000;
+	const mongoUrl = process.env["MONGO_URL"];
+	try {
+		if (!mongoUrl) {
+			logger.error("Mongo URL not found.");
+			throw new Error("Mongo URL not found.");
+		}
+		await mongoose.connect(mongoUrl);
 		logger.info("Connected to MongoDB successfully.");
-		app.listen(PORT, () => {
-			logger.info(`Server running on port ${PORT}`);
-		});
-	})
-	.catch((err) => {
-		logger.error({ error: err }, "Failed to connect to MongoDB");
-	});
+		app.listen(PORT);
+		logger.info(`Server running on port ${PORT}`);
+	} catch (err) {
+		logger.error({ error: err }, "Initialisation failed.");
+		process.exit(1);
+	}
+};
+
+startServer();
