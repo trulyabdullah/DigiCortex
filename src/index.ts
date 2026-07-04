@@ -246,6 +246,17 @@ app.get("/api/v1/content", decodeJwtMiddleware, async (req, res, next) => {
 	}
 });
 
+app.delete("/api/v1/delete", decodeJwtMiddleware, async (req, res, next) => {
+	const userId = res.locals["userId"];
+	try {
+		const data = await ContentModel.deleteMany({ user: userId });
+		req.log.info({ userId }, "Content deleted");
+		return res.status(200).json({ message: "Content deleted.", data });
+	} catch (err) {
+		return next(err);
+	}
+});
+
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 	req.log.error(err, "Error detected");
 	return res
