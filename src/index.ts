@@ -193,7 +193,7 @@ app.post(
 						},
 						{
 							upsert: true,
-							new: true,
+							returnDocument: "after",
 						},
 					);
 				}),
