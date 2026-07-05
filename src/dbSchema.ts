@@ -35,9 +35,20 @@ const TagSchema = new Schema({
 	},
 });
 
+const LinkSchema = new Schema({
+	hash: { type: String, required: true },
+	userId: {
+		type: Schema.Types.ObjectId,
+		ref: "User",
+		required: true,
+		unique: true,
+	},
+});
+
 ContentSchema.index({ user: 1 });
 TagSchema.index({ user: 1, name: 1 }, { unique: true });
 
 export const UserModel = mongoose.model("User", UserSchema);
 export const ContentModel = mongoose.model("Content", ContentSchema);
 export const TagModel = mongoose.model("Tag", TagSchema);
+export const LinkModel = mongoose.model("Link", LinkSchema);
