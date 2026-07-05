@@ -45,7 +45,7 @@ const LinkSchema = new Schema({
 	},
 });
 
-ContentSchema.index({ user: 1 });
+ContentSchema.index({ user: 1, tags: 1 });
 TagSchema.index({ user: 1, name: 1 }, { unique: true });
 
 export const UserModel = mongoose.model("User", UserSchema);

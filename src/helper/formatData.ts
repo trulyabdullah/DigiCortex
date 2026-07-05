@@ -1,3 +1,4 @@
+import type mongoose from "mongoose";
 import { ContentModel, TagModel } from "../dbSchema.js";
 
 type LeanUser = {
@@ -7,6 +8,7 @@ type LeanTag = {
 	name: string;
 };
 type LeanContent = {
+	_id: mongoose.Types.ObjectId;
 	title: string;
 	content: string;
 	user: LeanUser;
@@ -14,7 +16,9 @@ type LeanContent = {
 };
 
 export async function getFormattedData(userId: string, tagName?: string) {
-	const query: any = { user: userId };
+	const query: { user: string; tags?: mongoose.Types.ObjectId } = {
+		user: userId,
+	};
 	if (tagName) {
 		const tag = await TagModel.findOne({
 			user: userId,
@@ -26,7 +30,7 @@ export async function getFormattedData(userId: string, tagName?: string) {
 		query.tags = tag._id;
 	}
 	const data = await ContentModel.find(query)
-		.select("-_id -__v")
+		.select("-__v")
 		.populate([
 			{ path: "user", select: "name -_id" },
 			{ path: "tags", select: "name -_id" },
@@ -38,6 +42,7 @@ export async function getFormattedData(userId: string, tagName?: string) {
 
 function formatContent(data: LeanContent[]) {
 	return data.map((item) => ({
+		id: item._id.toString(),
 		title: item.title,
 		content: item.content,
 		name: item.user.name,

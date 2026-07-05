@@ -210,10 +210,7 @@ app.get("/api/v1/content", decodeJwtMiddleware, async (req, res, next) => {
 	try {
 		const data = await getFormattedData(userId, tagName);
 		if (!data.length) {
-			req.log.warn(
-				{ userId },
-				"Empty data returned or user might not exist.",
-			);
+			req.log.info({ userId, tagName }, "No content found");
 		}
 		return res.status(200).json({
 			message: data.length ? "Content found" : "No content found",
@@ -230,10 +227,7 @@ app.get("/api/v1/tags", decodeJwtMiddleware, async (req, res, next) => {
 		const tags = await TagModel.find({ user: userId })
 			.select("name -_id")
 			.sort({ name: 1 });
-		let formattedTags: string[] = [];
-		if (tags) {
-			formattedTags = tags.map((item) => item.name);
-		}
+		const formattedTags = tags.map((item) => item.name);
 		req.log.info("Tags fetched.");
 		return res.status(200).json({
 			message: tags.length ? "Tags found" : "No tags found",
@@ -248,12 +242,53 @@ app.delete("/api/v1/delete", decodeJwtMiddleware, async (req, res, next) => {
 	const userId = res.locals["userId"];
 	try {
 		const data = await ContentModel.deleteMany({ user: userId });
+		const tagData = await TagModel.deleteMany({ user: userId });
 		req.log.info({ userId }, "Content deleted");
-		return res.status(200).json({ message: "Content deleted.", data });
+		return res
+			.status(200)
+			.json({ message: "Content deleted.", data, tagData });
 	} catch (err) {
 		return next(err);
 	}
 });
+
+app.delete(
+	"/api/v1/content/:id",
+	decodeJwtMiddleware,
+	async (req, res, next) => {
+		const userId = res.locals["userId"];
+		const contentId = req.params["id"];
+		try {
+			const deletedContent = await ContentModel.findOneAndDelete({
+				_id: contentId,
+				user: userId,
+			});
+			if (!deletedContent) {
+				return res.status(404).json({
+					message: "Content not found.",
+				});
+			}
+			if (deletedContent) {
+				for (const tagId of deletedContent.tags) {
+					const stillUsed = await ContentModel.exists({
+						user: userId,
+						tags: tagId,
+					});
+
+					if (!stillUsed) {
+						await TagModel.findByIdAndDelete(tagId);
+					}
+				}
+			}
+			req.log.info("A specific card deleted.");
+			return res.status(200).json({
+				message: "Content deleted.",
+			});
+		} catch (err) {
+			return next(err);
+		}
+	},
+);
 
 app.post("/api/v1/brain/share", decodeJwtMiddleware, async (req, res, next) => {
 	const parsedBody = shareSchema.safeParse(req.body);
