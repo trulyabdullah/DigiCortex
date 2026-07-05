@@ -9,26 +9,14 @@ import jwt from "jsonwebtoken";
 import "dotenv/config";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-import { UserModel, ContentModel, TagModel } from "./dbSchema.js";
+import { UserModel, ContentModel, TagModel, LinkModel } from "./dbSchema.js";
 import logger from "./logger.js";
 import { pinoHttp } from "pino-http";
 import { decodeJwtMiddleware } from "./middleware/jwtDecode.js";
+import { getFormattedData } from "./helper/formatData.js";
 
 const saltRounds = 12;
 const app = express();
-
-type leanUser = {
-	name: string;
-};
-type leanTag = {
-	name: string;
-};
-type leanContent = {
-	title: string;
-	content: string;
-	user: leanUser;
-	tags: leanTag[];
-};
 
 const signupSchema = z.strictObject({
 	name: z.string().min(3),
@@ -43,6 +31,9 @@ const contentSchema = z.strictObject({
 	title: z.string().min(3),
 	content: z.string().min(5),
 	tags: z.array(z.string()).optional(),
+});
+const shareSchema = z.strictObject({
+	share: z.boolean(),
 });
 
 app.use(
@@ -216,30 +207,16 @@ app.post(
 app.get("/api/v1/content", decodeJwtMiddleware, async (req, res, next) => {
 	const userId = res.locals["userId"];
 	try {
-		const data = await ContentModel.find({ user: userId })
-			.select("-_id -__v")
-			.populate([
-				{ path: "user", select: "name -_id" },
-				{ path: "tags", select: "name -_id" },
-			])
-			.lean<leanContent[]>();
+		const data = await getFormattedData(userId);
 		if (!data.length) {
 			req.log.warn(
 				{ userId },
 				"Empty data returned or user might not exist.",
 			);
 		}
-		const formattedData = data.map((item) => {
-			return {
-				title: item.title,
-				content: item.content,
-				name: item.user.name,
-				tags: item.tags.map((tag) => tag.name),
-			};
-		});
 		return res.status(200).json({
 			message: data.length ? "Content found" : "No content found",
-			data: formattedData,
+			data,
 		});
 	} catch (err) {
 		return next(err);
@@ -252,6 +229,82 @@ app.delete("/api/v1/delete", decodeJwtMiddleware, async (req, res, next) => {
 		const data = await ContentModel.deleteMany({ user: userId });
 		req.log.info({ userId }, "Content deleted");
 		return res.status(200).json({ message: "Content deleted.", data });
+	} catch (err) {
+		return next(err);
+	}
+});
+
+app.post("/api/v1/brain/share", decodeJwtMiddleware, async (req, res, next) => {
+	const parsedBody = shareSchema.safeParse(req.body);
+	const userId = res.locals["userId"];
+	if (!parsedBody.success) {
+		req.log.warn("Invalid content schema");
+		return res.status(422).json({
+			message: "Malformed request body",
+		});
+	}
+	try {
+		if (parsedBody.data.share) {
+			const linkData = await LinkModel.create({
+				hash: crypto.randomUUID(),
+				userId,
+			});
+			req.log.info("Link generated.");
+			return res.status(200).json({
+				message: "Link generated.",
+				link: linkData.hash,
+			});
+		} else {
+			const deletedLinkData = await LinkModel.deleteOne({
+				userId: userId,
+			});
+			if (deletedLinkData.deletedCount === 0) {
+				req.log.warn("User tried deleting a non existent link");
+				return res.status(404).json({
+					message: "No link found for given user.",
+				});
+			} else {
+				req.log.info("Link deleted");
+				return res.status(200).json({
+					message: "Link deleted",
+				});
+			}
+		}
+	} catch (err: any) {
+		if (err.code === 11000) {
+			req.log.warn("Duplicate link attempt");
+			return res.status(409).json({
+				message: "Link already exists.",
+			});
+		} else {
+			return next(err);
+		}
+	}
+});
+
+app.get("/api/v1/brain/:shareLink", async (req, res, next) => {
+	try {
+		const linkData = await LinkModel.findOne({
+			hash: req.params.shareLink,
+		});
+		if (!linkData) {
+			req.log.warn("Tried searching for non existent link");
+			return res.status(404).json({
+				message: "No matching link found",
+			});
+		}
+		const userId = linkData.userId.toString();
+		const data = await getFormattedData(userId);
+		if (!data.length) {
+			req.log.warn(
+				{ userId },
+				"Empty data returned with shareable link.",
+			);
+		}
+		return res.status(200).json({
+			message: data.length ? "Content found" : "No content found",
+			data,
+		});
 	} catch (err) {
 		return next(err);
 	}
