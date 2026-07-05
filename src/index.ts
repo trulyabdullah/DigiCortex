@@ -28,8 +28,8 @@ const signinSchema = z.strictObject({
 	password: z.string().min(8),
 });
 const contentSchema = z.strictObject({
-	title: z.string().min(3),
-	content: z.string().min(5),
+	title: z.string().min(3).max(50),
+	content: z.string().min(5).max(5000),
 	tags: z.array(z.string()).optional(),
 });
 const shareSchema = z.strictObject({
@@ -206,8 +206,9 @@ app.post(
 
 app.get("/api/v1/content", decodeJwtMiddleware, async (req, res, next) => {
 	const userId = res.locals["userId"];
+	const tagName = req.query["tag"] as string | undefined;
 	try {
-		const data = await getFormattedData(userId);
+		const data = await getFormattedData(userId, tagName);
 		if (!data.length) {
 			req.log.warn(
 				{ userId },
@@ -217,6 +218,26 @@ app.get("/api/v1/content", decodeJwtMiddleware, async (req, res, next) => {
 		return res.status(200).json({
 			message: data.length ? "Content found" : "No content found",
 			data,
+		});
+	} catch (err) {
+		return next(err);
+	}
+});
+
+app.get("/api/v1/tags", decodeJwtMiddleware, async (req, res, next) => {
+	const userId = res.locals["userId"];
+	try {
+		const tags = await TagModel.find({ user: userId })
+			.select("name -_id")
+			.sort({ name: 1 });
+		let formattedTags: string[] = [];
+		if (tags) {
+			formattedTags = tags.map((item) => item.name);
+		}
+		req.log.info("Tags fetched.");
+		return res.status(200).json({
+			message: tags.length ? "Tags found" : "No tags found",
+			data: formattedTags,
 		});
 	} catch (err) {
 		return next(err);

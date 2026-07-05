@@ -1,4 +1,4 @@
-import { ContentModel } from "../dbSchema.js";
+import { ContentModel, TagModel } from "../dbSchema.js";
 
 type LeanUser = {
 	name: string;
@@ -13,8 +13,19 @@ type LeanContent = {
 	tags: LeanTag[];
 };
 
-export async function getFormattedData(userId: string) {
-	const data = await ContentModel.find({ user: userId })
+export async function getFormattedData(userId: string, tagName?: string) {
+	const query: any = { user: userId };
+	if (tagName) {
+		const tag = await TagModel.findOne({
+			user: userId,
+			name: tagName.toLowerCase().trim(),
+		});
+		if (!tag) {
+			return [];
+		}
+		query.tags = tag._id;
+	}
+	const data = await ContentModel.find(query)
 		.select("-_id -__v")
 		.populate([
 			{ path: "user", select: "name -_id" },
