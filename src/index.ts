@@ -39,7 +39,7 @@ const shareSchema = z.strictObject({
 
 app.use(
     cors({
-        origin: "http://localhost:5173", // Allow only this origin
+        origin: "https://digicortex.netlify.app",
         methods: "GET,POST,PUT,DELETE",
     }),
 );
