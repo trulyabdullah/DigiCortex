@@ -345,6 +345,19 @@ app.post("/api/v1/brain/share", decodeJwtMiddleware, async (req, res, next) => {
     }
 });
 
+app.get("/api/v1/brain/share", decodeJwtMiddleware, async (_req, res, next) => {
+    const userId = res.locals["userId"];
+    try {
+        const linkData = await LinkModel.findOne({ userId });
+        return res.status(200).json({
+            isShared: !!linkData,
+            link: linkData ? linkData.hash : null,
+        });
+    } catch (err) {
+        return next(err);
+    }
+});
+
 app.get("/api/v1/brain/:shareLink", async (req, res, next) => {
     try {
         const linkData = await LinkModel.findOne({
