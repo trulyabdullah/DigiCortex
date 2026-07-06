@@ -29,8 +29,8 @@ const signinSchema = z.strictObject({
     password: z.string().min(8),
 });
 const contentSchema = z.strictObject({
-    title: z.string().min(3).max(50),
-    content: z.string().min(1).max(5000),
+    title: z.string().min(1).max(50),
+    content: z.string().min(1).max(10000),
     tags: z.array(z.string()).optional(),
 });
 const shareSchema = z.strictObject({
